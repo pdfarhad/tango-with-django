@@ -6,7 +6,7 @@ from django.shortcuts import render_to_response, render
 from .models import Category, Page
 from .forms import CategoryForm, UserForm, UserProfileForm
 from django.contrib.auth.decorators import login_required
-
+from datetime import datetime
 
 def user_logout(request):
     logout(request)
@@ -70,6 +70,9 @@ def add_category(request):
 @csrf_protect
 def register(request):
     context = RequestContext(request)
+    if request.session.set_test_cookie():
+        print("Test Cookie Worked! ")
+        request.session.delete_test_cookie()
     registered = False
 
     if request.method == 'POST':
@@ -108,20 +111,38 @@ def register(request):
 
 def index(request):
     context = RequestContext(request)
+    request.session.set_test_cookie()
 
     category_list = Category.objects.all()#order_by('-likes')[:5]
     context_dict = {'categories': category_list}
     for category in category_list:
         category.url = category.name.replace(' ', '_')
 
-    return render_to_response('rango/index.html', context_dict, context)
+    response =  render(request, 'rango/index.html', context_dict, context)
+
+    visits = int(request.COOKIES.get('visits', '0'))
+
+    if 'last_visit' in request.COOKIES.keys():
+        last_visit = request.COOKIES['last_visit']
+
+        last_visit_time = datetime.strptime(last_visit[:-7], "%Y-%m-%d %H:%M:%S")
+
+        if (datetime.now() - last_visit_time).days > 0:
+            response.set_cookie('visits', visits+1)
+
+            response.set_cookie('last_visit', datetime.now())
+
+    else:
+        response.set_cookie('last_visit', datetime.now())
+
+    return response
 
 
 def about(request):
     context = RequestContext(request)
     context_dict = {'boldmessage':"About"}
 
-    return render_to_response('rango/about.html', context_dict, context)
+    return render(request, 'rango/about.html', context_dict, context)
 
 
 def category(request, category_name_url):
@@ -139,4 +160,4 @@ def category(request, category_name_url):
     except Category.DoesNotExist:
         pass
 
-    return render_to_response('rango/category.html', context_dict, context)
+    return render(request, 'rango/category.html', context_dict, context)
